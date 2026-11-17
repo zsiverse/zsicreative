@@ -72,7 +72,14 @@ ${lines.map((l, i) => `<text x="24" y="${80 + i * 26}" font-family="sans-serif" 
     const out = path.join(dir, 'out.mp4');
     try {
       const dur = Math.min(input.params.duration ?? 3, 10);
-      await run('ffmpeg', ['-y', '-f', 'lavfi', '-i', `testsrc2=size=${w}x${h}:rate=24`, '-t', String(dur), '-pix_fmt', 'yuv420p', out]);
+      const hex = () => '0x' + Math.floor(Math.random() * 0xffffff).toString(16).padStart(6, '0');
+      const enc = ['-t', String(dur), '-pix_fmt', 'yuv420p', out];
+      try {
+        // soft moving gradient; older ffmpeg builds lack this source
+        await run('ffmpeg', ['-y', '-f', 'lavfi', '-i', `gradients=s=${w}x${h}:c0=${hex()}:c1=${hex()}:c2=0x7c5cff:n=3:speed=0.03:rate=24`, ...enc]);
+      } catch {
+        await run('ffmpeg', ['-y', '-f', 'lavfi', '-i', `testsrc2=size=${w}x${h}:rate=24`, ...enc]);
+      }
       return { media: [{ data: readFileSync(out), mime: 'video/mp4' }] };
     } catch {
       throw new ProviderError('Demo video needs ffmpeg installed (Mac: brew install ffmpeg).');

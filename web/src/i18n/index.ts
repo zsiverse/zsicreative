@@ -105,6 +105,21 @@ const en = {
   "settings.docs": "Docs",
   "empty.title": "Empty canvas",
   "empty.body": "Ask the Director, pick a template, or double-click anywhere to add a node.",
+  "tool.select": "Select (V)",
+  "tool.hand": "Move canvas (H)",
+  "tool.minimap": "Mini map",
+  "tool.zoomIn": "Zoom in",
+  "tool.zoomOut": "Zoom out",
+  "tool.ask": "Ask Director",
+  "empty.brief": "1. Fill the brief",
+  "empty.briefDesc": "Paste a product link to import name, photos and details.",
+  "empty.template": "2. Pick a template",
+  "empty.templateDesc": "Start from a ready-made ad flow.",
+  "empty.director": "3. Or ask the Director",
+  "empty.directorDesc": "Describe the ad and get a custom plan.",
+  "empty.tip": "Tip: double-click the canvas to add a node. Press Ctrl/⌘ + Enter in a prompt to run it.",
+  "node.noPrompt": "No prompt yet. Click to write one.",
+  "assets.drag": "Drag onto the canvas to use as a reference.",
 };
 
 const vi: typeof en = {
@@ -211,6 +226,21 @@ const vi: typeof en = {
   "settings.docs": "Tài liệu",
   "empty.title": "Canvas trống",
   "empty.body": "Hỏi Director, chọn template, hoặc nhấp đúp vào bất kỳ đâu để thêm node.",
+  "tool.select": "Chọn (V)",
+  "tool.hand": "Di chuyển canvas (H)",
+  "tool.minimap": "Bản đồ thu nhỏ",
+  "tool.zoomIn": "Phóng to",
+  "tool.zoomOut": "Thu nhỏ",
+  "tool.ask": "Hỏi Director",
+  "empty.brief": "1. Điền brief",
+  "empty.briefDesc": "Dán link sản phẩm để nhập tên, ảnh và thông tin.",
+  "empty.template": "2. Chọn template",
+  "empty.templateDesc": "Bắt đầu từ một flow quảng cáo dựng sẵn.",
+  "empty.director": "3. Hoặc hỏi Director",
+  "empty.directorDesc": "Mô tả quảng cáo để nhận kế hoạch riêng.",
+  "empty.tip": "Mẹo: nhấp đúp vào canvas để thêm node. Nhấn Ctrl/⌘ + Enter trong ô prompt để chạy.",
+  "node.noPrompt": "Chưa có prompt. Bấm để viết.",
+  "assets.drag": "Kéo vào canvas để dùng làm tham chiếu.",
 };
 
 export type TKey = keyof typeof en;

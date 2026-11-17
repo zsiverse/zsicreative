@@ -88,6 +88,10 @@ interface State {
   settingsOpen: boolean;
   preview?: Asset;
   confirm?: ConfirmState;
+  tool: 'select' | 'hand';
+  minimap: boolean;
+  setTool(t: 'select' | 'hand'): void;
+  setMinimap(v: boolean): void;
 
   directorOpen: boolean;
   directorBusy: boolean;
@@ -163,6 +167,10 @@ export const useStore = create<State>()((set, get) => {
     providers: [],
     assets: {},
     settingsOpen: false,
+    tool: 'hand',
+    minimap: false,
+    setTool: (tool) => set({ tool }),
+    setMinimap: (minimap) => set({ minimap }),
 
     directorOpen: true,
     directorBusy: false,
@@ -300,21 +308,45 @@ export const useStore = create<State>()((set, get) => {
           if (depth.has(e.from) && depth.has(e.to) && depth.get(e.to)! <= depth.get(e.from)!) depth.set(e.to, depth.get(e.from)! + 1);
         }
       }
-      // Loose text (brief, copy) sits in the first column so the media pipeline reads left to right.
+      // Storyboard layout: inputs (text, product) stack in a left column; media reads left to right,
+      // one row per stage (assets, frames, shots), with each shot under the frame it comes from.
       const bottom = nodes.reduce((m, n) => Math.max(m, n.position.y + (n.measured?.height ?? estimateSize(n.type!, n.data).h)), -Infinity);
       const left = nodes.reduce((m, n) => Math.min(m, n.position.x), Infinity);
       const x0 = Number.isFinite(left) ? left : 0;
-      const y0 = Number.isFinite(bottom) ? bottom + 160 : 0;
-      const colY = new Map<number, number>();
-      const created: FlowNode[] = plan.nodes.map((pn) => {
-        const d = depth.get(pn.ref)!;
+      const y0 = Number.isFinite(bottom) ? bottom + 200 : 0;
+      const COL = 300;
+      const isMedia = (t: string) => t === 'imageGen' || t === 'videoGen';
+      const dataOf = (pn: Plan['nodes'][number]): NodeData => {
         const data: NodeData = { label: pn.label, text: pn.text, system: pn.system, aspectRatio: pn.aspectRatio, duration: pn.duration, assetIds: pn.assetIds };
-        if (pn.type === 'imageGen' || pn.type === 'videoGen') data.aspectRatio ??= '9:16';
+        if (isMedia(pn.type)) data.aspectRatio ??= '9:16';
         if (pn.type === 'videoGen') data.duration ??= 5;
-        const y = colY.get(d) ?? y0;
-        colY.set(d, y + estimateSize(pn.type, data).h + 70);
-        return { id: idOf.get(pn.ref)!, type: pn.type, position: { x: x0 + d * 340, y }, data };
-      });
+        return data;
+      };
+      const pos = new Map<string, { x: number; y: number }>();
+      let inputY = y0;
+      for (const pn of plan.nodes.filter((n) => !isMedia(n.type))) {
+        pos.set(pn.ref, { x: x0, y: inputY });
+        inputY += estimateSize(pn.type, dataOf(pn)).h + 60;
+      }
+      const media = plan.nodes.filter((n) => isMedia(n.type));
+      const rows = [...new Set(media.map((n) => depth.get(n.ref)!))].sort((a, b) => a - b);
+      const mediaX0 = x0 + (media.length < plan.nodes.length ? COL + 40 : 0);
+      const typeOf = new Map(plan.nodes.map((n) => [n.ref, n.type]));
+      let rowY = y0;
+      for (const d of rows) {
+        const used = new Set<number>();
+        let rowH = 0;
+        for (const pn of media.filter((n) => depth.get(n.ref) === d)) {
+          const parentRef = plan.edges.filter((e) => e.to === pn.ref).map((e) => e.from).find((r) => pos.has(r) && isMedia(typeOf.get(r) ?? ''));
+          let col = parentRef ? Math.round((pos.get(parentRef)!.x - mediaX0) / COL) : 0;
+          while (used.has(col)) col++;
+          used.add(col);
+          pos.set(pn.ref, { x: mediaX0 + col * COL, y: rowY });
+          rowH = Math.max(rowH, estimateSize(pn.type, dataOf(pn)).h);
+        }
+        rowY += rowH + 130;
+      }
+      const created: FlowNode[] = plan.nodes.map((pn) => ({ id: idOf.get(pn.ref)!, type: pn.type, position: pos.get(pn.ref)!, data: dataOf(pn) }));
       const newEdges: Edge[] = [];
       for (const e of plan.edges) {
         const source = resolve(e.from);

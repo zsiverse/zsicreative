@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { Handle, Position, useReactFlow, type NodeProps, type NodeTypes } from '@xyflow/react';
-import { AlertTriangle, ArrowUp, Braces, FileText, Image as ImageIcon, ImagePlus, Loader2, RefreshCw, Sparkles, Square, StickyNote, Type, Video, X } from 'lucide-react';
+import { Handle, NodeToolbar, Position, useReactFlow, type NodeProps, type NodeTypes } from '@xyflow/react';
+import { AlertTriangle, ArrowUp, Braces, FileText, Image as ImageIcon, ImagePlus, Loader2, Play, Sparkles, Square, StickyNote, Type, Video, X } from 'lucide-react';
 import { estimateCost, type Modality } from '@zsi/shared';
 import { useT } from '../i18n';
 import { api } from '../lib/api';
@@ -27,9 +27,9 @@ const useUpdate = (id: string) => {
 
 const isBusy = (d: NodeData) => d.status === 'queued' || d.status === 'running';
 
-// ---------- shell: label above, card, handles, composer below when selected ----------
+// ---------- shell: label above, card, caption, handles; composer floats under the selected node ----------
 
-function Shell({ id, type, data, selected, width, input, output, runnable, composer, children }: {
+function Shell({ id, type, data, selected, width, input, output, runnable, caption, composer, children }: {
   id: string;
   type: NodeKind;
   data: NodeData;
@@ -38,56 +38,75 @@ function Shell({ id, type, data, selected, width, input, output, runnable, compo
   input?: boolean;
   output?: boolean;
   runnable?: boolean;
+  /** show the prompt under the card, so a storyboard can be read without clicking */
+  caption?: boolean;
   composer?: ReactNode;
   children: ReactNode;
 }) {
   const t = useT();
   const update = useUpdate(id);
   const rf = useReactFlow();
+  const only = useStore((s) => s.nodes.filter((n) => n.selected).length === 1);
   const meta = NODE_META[type];
   const busy = isBusy(data);
   return (
     <div className="relative" style={{ width }}>
-      <div className="mb-1.5 flex h-5 items-center gap-1.5 text-[11px] text-muted">
-        <span style={{ color: meta.color }}>{meta.icon(12)}</span>
+      <div className="mb-1.5 flex h-5 items-center gap-1.5 text-[12px]">
+        <span style={{ color: meta.color }}>{meta.icon(13)}</span>
         <input
-          className="nodrag min-w-0 flex-1 truncate bg-transparent outline-none focus:text-white"
+          className={`nodrag min-w-0 flex-1 truncate bg-transparent font-medium outline-none ${selected ? 'text-white' : 'text-[#b9b9c8]'}`}
           value={data.label ?? ''}
           placeholder={t(`node.${type}`)}
           onChange={(e) => update({ label: e.target.value })}
         />
-        {busy && (
-          <span className="flex items-center gap-1 text-accent-2">
-            <Loader2 size={11} className="animate-spin" />
-            {data.progress ? `${Math.round(data.progress * 100)}%` : t('status.queued')}
-          </span>
-        )}
-        {data.status === 'failed' && <AlertTriangle size={12} className="text-rose-400" />}
+        {data.status === 'failed' && <AlertTriangle size={13} className="text-rose-400" />}
         {selected && (
-          <span className="nodrag flex items-center gap-0.5">
-            {runnable && !busy && (
-              <button className="rounded p-0.5 hover:bg-line hover:text-white" title={t(data.status === 'done' ? 'rerun' : 'run')} onClick={() => runNode(id, t)}>
-                <RefreshCw size={12} />
-              </button>
-            )}
-            <button className="rounded p-0.5 hover:bg-line hover:text-white" title={t('app.delete')} onClick={() => rf.deleteElements({ nodes: [{ id }] })}>
-              <X size={12} />
-            </button>
-          </span>
+          <button className="nodrag rounded p-0.5 text-muted hover:bg-line hover:text-white" title={t('app.delete')} onClick={() => rf.deleteElements({ nodes: [{ id }] })}>
+            <X size={13} />
+          </button>
         )}
       </div>
 
-      <div className={`overflow-hidden rounded-xl border bg-panel shadow-lg shadow-black/40 transition-colors ${selected ? 'border-accent-2' : 'border-line'}`}>{children}</div>
+      <div className={`group/card relative overflow-hidden rounded-2xl border bg-panel shadow-lg shadow-black/40 transition-all ${selected ? 'border-accent-2 ring-2 ring-accent/30' : 'border-line hover:border-[#3d3d52]'}`}>
+        {children}
+        {busy && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/65 text-[11px] text-white backdrop-blur-[1px]">
+            <Loader2 size={22} className="animate-spin text-accent-2" />
+            {data.progress ? `${Math.round(data.progress * 100)}%` : t('status.queued')}
+          </div>
+        )}
+        {runnable && (
+          <button
+            className={`nodrag absolute right-2 top-2 flex h-7 items-center gap-1 rounded-full px-2.5 text-[11px] font-medium text-white shadow-lg transition-opacity ${busy ? 'bg-rose-500/80 opacity-100' : 'bg-accent opacity-0 hover:bg-accent-2 group-hover/card:opacity-100'}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              busy ? data.jobId && api.cancelJob(data.jobId) : runNode(id, t);
+            }}
+          >
+            {busy ? <Square size={10} /> : <Play size={11} />}
+            {busy ? t('cancel') : t(data.status === 'done' ? 'rerun' : 'run')}
+          </button>
+        )}
+      </div>
 
-      {data.status === 'failed' && data.error && <div className="mt-1.5 rounded-md bg-rose-500/10 p-1.5 text-[11px] leading-snug text-rose-300 break-words">{data.error}</div>}
+      {caption && <p className={`mt-1.5 line-clamp-2 px-0.5 text-[11px] leading-snug ${data.text?.trim() ? 'text-muted' : 'italic text-[#5c5c70]'}`}>{data.text?.trim() || t('node.noPrompt')}</p>}
+      {data.status === 'failed' && data.error && <div className="mt-1.5 rounded-lg bg-rose-500/10 p-2 text-[11px] leading-snug text-rose-300 break-words">{data.error}</div>}
 
       {input && <Handle type="target" position={Position.Left} style={{ top: 'calc(50% + 13px)' }} />}
       {output && <Handle type="source" position={Position.Right} style={{ top: 'calc(50% + 13px)' }} />}
 
-      {selected && composer && (
-        <div className="nodrag nowheel absolute left-1/2 top-full z-10 mt-3 w-[440px] -translate-x-1/2 cursor-default rounded-2xl border border-line bg-panel-2 p-3 shadow-2xl shadow-black/60">
-          {composer}
-        </div>
+      {composer && (
+        // NodeToolbar keeps its size at any zoom, so the prompt stays readable on a zoomed-out board.
+        <NodeToolbar isVisible={!!selected && only} position={Position.Bottom} offset={14}>
+          <div
+            className="w-[460px] rounded-2xl border border-line bg-panel-2 p-3 shadow-2xl shadow-black/70"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) runNode(id, t);
+            }}
+          >
+            {composer}
+          </div>
+        </NodeToolbar>
       )}
     </div>
   );
@@ -275,7 +294,7 @@ function LlmNode({ id, data, selected }: P) {
         <textarea className="nodrag nowheel block h-44 w-full resize-y bg-transparent p-3 text-[12px] leading-relaxed outline-none" value={data.outputText} onChange={(e) => update({ outputText: e.target.value })} />
       ) : (
         <div className="flex h-32 flex-col items-center justify-center gap-2 p-4 text-center text-[11px] text-muted">
-          {isBusy(data) ? <Loader2 size={20} className="animate-spin text-accent-2" /> : <Sparkles size={20} />}
+          <Sparkles size={20} />
           <span className="line-clamp-3">{data.text}</span>
         </div>
       )}
@@ -300,10 +319,11 @@ function GenNode({ id, data, selected, modality }: P & { modality: 'image' | 'vi
       input
       output
       runnable
+      caption
       composer={
         <>
           <Inputs id={id} />
-          <textarea className="block h-24 w-full resize-none bg-transparent text-[12px] leading-relaxed outline-none" value={data.text ?? ''} placeholder={t('field.prompt')} onChange={(e) => update({ text: e.target.value })} />
+          <textarea className="block h-24 w-full resize-none bg-transparent text-[12px] leading-relaxed outline-none" value={data.text ?? ''} placeholder={t('field.prompt')} autoFocus={!data.text} onChange={(e) => update({ text: e.target.value })} />
           {adv && <textarea className="field mt-1 h-14 font-mono text-[11px]" value={data.extra ?? ''} placeholder={`${t('field.advanced')}  {"resolution": "1080p"}`} onChange={(e) => update({ extra: e.target.value })} />}
           <div className="mt-2 flex items-center gap-1.5">
             <ModelPicker modality={modality} data={data} update={update} />
@@ -333,14 +353,9 @@ function GenNode({ id, data, selected, modality }: P & { modality: 'image' | 'vi
       {has ? (
         <Media ids={data.assetIds} single={isVideo} />
       ) : (
-        <div className="flex flex-col items-center justify-center gap-2 p-4 text-center text-[11px] text-muted" style={{ aspectRatio: ratioCss(data.aspectRatio) }}>
-          {isBusy(data) ? <Loader2 size={22} className="animate-spin text-accent-2" /> : NODE_META[isVideo ? 'videoGen' : 'imageGen'].icon(24)}
-          <span className="line-clamp-4">{data.text}</span>
-        </div>
-      )}
-      {has && isBusy(data) && (
-        <div className="absolute inset-x-0 bottom-0 top-[26px] flex items-center justify-center rounded-xl bg-black/60">
-          <Loader2 size={22} className="animate-spin text-accent-2" />
+        <div className="flex flex-col items-center justify-center gap-2 text-[#4a4a5e]" style={{ aspectRatio: ratioCss(data.aspectRatio), background: 'repeating-linear-gradient(135deg, transparent 0 14px, rgba(255,255,255,.015) 14px 28px)' }}>
+          {NODE_META[isVideo ? 'videoGen' : 'imageGen'].icon(30)}
+          <span className="text-[11px]">{data.aspectRatio ?? '9:16'}{isVideo ? ` · ${data.duration ?? 5}s` : ''}</span>
         </div>
       )}
     </Shell>

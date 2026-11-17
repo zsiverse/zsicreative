@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Background, BackgroundVariant, ReactFlow, useReactFlow, type Connection, type Edge, type OnConnectEnd } from '@xyflow/react';
-import { Sparkles } from 'lucide-react';
+import { Background, BackgroundVariant, MiniMap, ReactFlow, SelectionMode, useReactFlow, type Connection, type Edge, type OnConnectEnd } from '@xyflow/react';
+import { Clapperboard, FileText, LayoutTemplate } from 'lucide-react';
+import { TEMPLATES } from '@zsi/shared';
 import { fitPadding, RUNNABLE, useStore, type FlowNode, type NodeKind } from './lib/store';
 import { nodeTypes } from './nodes/nodes';
-import { DND_ASSET, NodeMenu, Toolbar, TopChrome } from './components/Chrome';
+import { AskDirector, DND_ASSET, DND_NODE, NodeMenu, Toolbar, TopChrome, ZoomControls } from './components/Chrome';
 import { Director } from './components/Director';
 import { BriefTab } from './components/BriefTab';
 import { SettingsModal } from './components/SettingsModal';
@@ -34,7 +35,7 @@ interface MenuState {
 
 function Workspace() {
   const t = useT();
-  const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode, assets, tab, project } = useStore();
+  const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode, assets, tab, project, tool, setTool, minimap, setTab, setDirectorOpen, applyPlan, brief, directorOpen } = useStore();
   const rf = useReactFlow();
   const [menu, setMenu] = useState<MenuState | null>(null);
 
@@ -77,7 +78,23 @@ function Workspace() {
     addNode(kind, { x: pos.x + Math.random() * 60, y: pos.y + Math.random() * 60 });
   };
 
+  // V = select tool, H = hand tool (ignored while typing)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || /^(INPUT|TEXTAREA|SELECT)$/.test((e.target as HTMLElement)?.tagName ?? '')) return;
+      if (e.key.toLowerCase() === 'v') setTool('select');
+      if (e.key.toLowerCase() === 'h') setTool('hand');
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [setTool]);
+
   const onDrop = (e: React.DragEvent) => {
+    const kind = e.dataTransfer.getData(DND_NODE) as NodeKind;
+    if (kind) {
+      e.preventDefault();
+      return void addNode(kind, rf.screenToFlowPosition({ x: e.clientX - 120, y: e.clientY - 40 }));
+    }
     const assetId = e.dataTransfer.getData(DND_ASSET);
     if (!assetId || !assets[assetId]) return;
     e.preventDefault();
@@ -113,21 +130,39 @@ function Workspace() {
           if ((e.target as HTMLElement).classList.contains('react-flow__pane')) setMenu({ x: e.clientX, y: e.clientY });
         }}
         zoomOnDoubleClick={false}
-        className="dark"
+        panOnDrag={tool === 'hand' ? true : [1, 2]}
+        selectionOnDrag={tool === 'select'}
+        selectionMode={SelectionMode.Partial}
+        panOnScroll
+        zoomOnPinch
+        className={`dark ${tool === 'hand' ? 'tool-hand' : 'tool-select'}`}
         minZoom={0.1}
         maxZoom={2}
         deleteKeyCode={['Backspace', 'Delete']}
         proOptions={{ hideAttribution: true }}
       >
         <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} color="#26263a" />
+        {minimap && <MiniMap position="bottom-left" pannable zoomable nodeColor="#3a3a52" maskColor="rgba(0,0,0,.6)" style={{ marginBottom: 64 }} />}
       </ReactFlow>
 
       {nodes.length === 0 && tab === 'canvas' && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center pr-[380px]">
-          <div className="max-w-xs text-center">
-            <Sparkles className="mx-auto mb-3 text-accent-2" />
-            <h2 className="mb-1 text-base font-semibold">{t('empty.title')}</h2>
-            <p className="text-[12px] leading-relaxed text-muted">{t('empty.body')}</p>
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center" style={{ paddingRight: directorOpen ? 400 : 0 }}>
+          <div className="pointer-events-auto w-[560px] max-w-full px-4">
+            <h2 className="mb-4 text-center text-lg font-semibold">{t('empty.title')}</h2>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { icon: <FileText size={18} />, title: t('empty.brief'), desc: t('empty.briefDesc'), go: () => setTab('brief'), id: 'start-brief' },
+                { icon: <LayoutTemplate size={18} />, title: t('empty.template'), desc: t('empty.templateDesc'), go: () => focus(applyPlan(TEMPLATES[0].build(brief))), id: 'start-template' },
+                { icon: <Clapperboard size={18} />, title: t('empty.director'), desc: t('empty.directorDesc'), go: () => setDirectorOpen(true), id: 'start-director' },
+              ].map((c) => (
+                <button key={c.id} data-testid={c.id} className="rounded-2xl border border-line bg-panel p-4 text-left transition-colors hover:border-accent hover:bg-panel-2" onClick={c.go}>
+                  <span className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-accent/20 text-accent-2">{c.icon}</span>
+                  <span className="block font-medium">{c.title}</span>
+                  <span className="mt-1 block text-[11px] leading-snug text-muted">{c.desc}</span>
+                </button>
+              ))}
+            </div>
+            <p className="mt-4 text-center text-[11px] text-muted">{t('empty.tip')}</p>
           </div>
         </div>
       )}
@@ -141,6 +176,8 @@ function Workspace() {
       {tab === 'brief' && <BriefTab />}
       <TopChrome />
       {tab === 'canvas' && <Toolbar onAdd={addAtCenter} onAddedNodes={focus} />}
+      {tab === 'canvas' && <ZoomControls />}
+      {tab === 'canvas' && <AskDirector />}
       {tab === 'canvas' && <Director onAdded={focus} />}
     </div>
   );

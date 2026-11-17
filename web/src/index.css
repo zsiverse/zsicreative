@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0b0b10;
+  --color-panel: #13131b;
+  --color-panel-2: #1b1b26;
+  --color-line: #2a2a38;
+  --color-muted: #8b8ba0;
+  --color-accent: #7c5cff;
+  --color-accent-2: #a48bff;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html, body, #root { height: 100%; }
+body { background: var(--color-bg); color: #e8e8f0; font-family: var(--font-sans); font-size: 13px; }
+
+.react-flow { --xy-background-color: var(--color-bg); --xy-edge-stroke: #4b4b63; --xy-edge-stroke-selected: var(--color-accent-2); --xy-connectionline-stroke: var(--color-accent-2); }
+.react-flow__node { font-family: var(--font-sans); }
+.react-flow__handle { width: 11px; height: 11px; border: 2px solid var(--color-bg); }
+.react-flow__controls button { background: var(--color-panel-2); border-color: var(--color-line); fill: #ccc; }
+.react-flow__minimap { background: var(--color-panel); }
+.react-flow__attribution { display: none; }
+
+.field { width: 100%; background: var(--color-bg); border: 1px solid var(--color-line); border-radius: 8px; padding: 6px 8px; color: #e8e8f0; outline: none; }
+.field:focus { border-color: var(--color-accent); }
+select.field { padding: 5px 6px; }
+.btn { display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; padding: 6px 10px; font-weight: 500; border: 1px solid var(--color-line); background: var(--color-panel-2); cursor: pointer; }
+.btn:hover { border-color: #3a3a4e; background: #222230; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn-primary { background: var(--color-accent); border-color: var(--color-accent); color: white; }
+.btn-primary:hover { background: #6b49ff; border-color: #6b49ff; }
+.label { font-size: 11px; color: var(--color-muted); margin-bottom: 3px; display: block; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #2a2a38; border-radius: 8px; }

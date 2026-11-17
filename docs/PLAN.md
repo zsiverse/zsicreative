@@ -1,5 +1,7 @@
 # zsicreative – build plan (2–4 weeks)
 
+> The detailed task list with acceptance criteria lives in [HANDOFF.md](HANDOFF.md). Keep both in sync.
+
 Priorities: **Marketing Studio first**. UI is English first, then Vietnamese. The app is local and self-hosted, packaged for macOS first.
 
 ## Week 1 – Foundation + Creative Canvas ✅
@@ -28,6 +30,7 @@ UI and workflow follow Toonflow as the reference: a home screen with an idea box
 - [x] 5 templates: Product Showcase, UGC Hook Ad, Unboxing, Lifestyle Image Set, Before/After
 - [x] AI Director: reads brief + canvas, proposes a plan, "Add to canvas", then "Run this plan" with a cost confirmation
 - [x] Run all: runs nodes in dependency order (assets → frames → shots)
+- [x] UI polish: bottom dock, zoom controls, onboarding cards, storyboard layout, hover run
 - [ ] Export 9:16 / 1:1 / 16:9 and join clips into one video (ffmpeg)
 - [ ] Director tested with a real LLM (only the offline demo path is tested)
 

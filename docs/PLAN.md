@@ -15,20 +15,26 @@ Priorities: **Marketing Studio first**. UI is English first, then Vietnamese. Th
 - [x] EN / VI language switch
 - [ ] Verify each real provider with a real key (needs Si's keys)
 
-## Week 2 – Marketing Studio (MVP)
+## Week 2 – Marketing Studio + Toonflow-style workspace ✅ (export pending)
 
-- [ ] Product import from a Shopify product URL (public `.json` endpoint), or manual upload
-- [ ] Brand Kit: logo, colors, tone, audience, reused by every template
-- [ ] Prompt Agent: product + brand → hooks, script, image and video prompts
-- [ ] Template = App format (JSON graph + exposed inputs)
-- [ ] 5 starter templates: Product Showcase, UGC Hook, Unboxing, Lifestyle Image Set, Before/After
-- [ ] Quick Mode (form) that runs a template without touching the canvas
-- [ ] Export 9:16 / 1:1 / 16:9 (ffmpeg)
+UI and workflow follow Toonflow as the reference: a home screen with an idea box, a full-bleed canvas with floating bars, media-first nodes with a composer under the selected node, and an agent that proposes a plan and asks before spending.
+
+- [x] Home screen: idea box that opens a project with the Director, project grid with covers
+- [x] Workspace chrome: floating top-left pill, Canvas / Brief tabs, bottom-left toolbar, floating Director panel
+- [x] Media-first nodes with one input and one output; composer (references, prompt, model, ratio, duration) on the selected node
+- [x] Node menu on double-click, right-click, or when a wire is dropped on empty canvas
+- [x] Brief tab: product import from a Shopify link (public `.json`) or any page with product metadata, product images, brand facts
+- [x] Template = plan format (nodes + edges) shared by templates and the Director
+- [x] 5 templates: Product Showcase, UGC Hook Ad, Unboxing, Lifestyle Image Set, Before/After
+- [x] AI Director: reads brief + canvas, proposes a plan, "Add to canvas", then "Run this plan" with a cost confirmation
+- [x] Run all: runs nodes in dependency order (assets → frames → shots)
+- [ ] Export 9:16 / 1:1 / 16:9 and join clips into one video (ffmpeg)
+- [ ] Director tested with a real LLM (only the offline demo path is tested)
 
 ## Week 3 – AI Director + templates
 
-- [ ] Director chat panel that reads the canvas, proposes nodes and builds flows; asks for approval before spending, with a budget cap per run
-- [ ] Run a whole flow in dependency order
+- [ ] Director edits existing nodes (rewrite a prompt, swap a reference), with a budget cap per run
+- [ ] Publish a canvas flow as a reusable template with exposed inputs
 - [ ] Template import/export (`.json`), as the seed of community sharing
 - [ ] Reference ad: upload a video → shot list → prompts with the same structure
 

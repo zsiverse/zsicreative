@@ -2,8 +2,8 @@
 
 Local-first AI creative studio: an infinite **canvas** of AI nodes plus (soon) an **AI Director** agent, built for three jobs:
 
-1. **Marketing Studio** – product → ad images & UGC-style videos for TikTok / Reels / Meta *(in progress, week 2)*
-2. **Creative Canvas** – connect prompt, image, video and AI-writer nodes into reusable flows *(week 1 ✅)*
+1. **Marketing Studio** – product link → brief → ad images & UGC-style videos for TikTok / Reels / Meta *(templates and Director ✅, export pending)*
+2. **Creative Canvas** – connect text, image, video and AI-writer nodes into reusable flows ✅
 3. **Short Film Studio** – script → storyboard → clips → final short *(week 4)*
 
 Everything runs on **your own computer**. API keys are encrypted and never leave the machine except to call the provider you chose.
@@ -31,7 +31,17 @@ Everything runs on **your own computer**. API keys are encrypted and never leave
 
 5. Open <http://localhost:8787> in your browser.
 
-The **Demo (offline)** provider works without any key, so you can try the canvas for free. Click **Load example flow**, then press **Run** on each node from left to right.
+The **Demo (offline)** provider works without any key, so you can try everything for free.
+
+### A first ad in 5 steps
+
+1. On the home screen, type what you want (for example "UGC TikTok ad for my coffee mug") and press the arrow.
+2. Open the **Brief** tab, paste your product link and press **Import**. Fix or complete the fields.
+3. Back on **Canvas**, ask the **Director** or pick a template from the toolbar.
+4. Press **Add to canvas**, then **Run this plan**. You confirm the estimated cost before anything is generated.
+5. Click any node to edit its prompt, model, ratio or duration, and run it again.
+
+Tips: double-click the canvas to add a node. Drag from a node's dot to connect it, or drop the wire on empty space to create the next node.
 
 ### Add real AI providers
 

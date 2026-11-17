@@ -12,6 +12,19 @@ The original research is in `AFMS_Build_Report` (Higgsfield, DramaClaw, Toonflow
 | Exposes an API for LLMs, models, apps and workflows | Used as **one provider** inside our gateway, not a competitor to build against |
 | Prices per second (for example Seedance 2.5 Flash at about $0.016/s, promo) | Cost estimate on every node, plus a project spend counter |
 
+## Toonflow: what we mirror
+
+Read from the MIT-licensed repository and its screenshots. No code was copied.
+
+| Toonflow | zsicreative |
+|---|---|
+| Home with an "inspiration" prompt box and a project list | Home with an idea box that opens the Director, and a project grid |
+| Full-bleed canvas, floating pills, Canvas / Document tabs | Same layout, with Canvas / Brief tabs |
+| Media-first nodes, label above, one handle per side, composer under the selected node | Same node anatomy |
+| Menu of node types when a wire is dropped on empty canvas | Same, plus double-click and right-click |
+| Workflow: script → reference assets → storyboard frames → video shots | Brief → Asset (product, creator) → Frame → Shot |
+| Agent reads the workspace and confirms compute cost before generating | Director proposes a plan; the user adds it and confirms cost before running |
+
 ## Decisions
 
 - **Build new, reference Toonflow.** Toonflow is MIT licensed, but it is a Vue + Bun + Electrobun app aimed at short drama and motion comics, with mostly Chinese docs. Its ideas will be reused for Film Studio.

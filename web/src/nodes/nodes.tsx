@@ -1,121 +1,204 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import type { NodeProps, NodeTypes } from '@xyflow/react';
-import { FileText, Image as ImageIcon, Upload, Video, Sparkles, StickyNote, ChevronDown, ChevronRight } from 'lucide-react';
+import { useRef, useState, type ReactNode } from 'react';
+import { Handle, Position, useReactFlow, type NodeProps, type NodeTypes } from '@xyflow/react';
+import { AlertTriangle, ArrowUp, Braces, FileText, Image as ImageIcon, ImagePlus, Loader2, RefreshCw, Sparkles, Square, StickyNote, Type, Video, X } from 'lucide-react';
 import { estimateCost, type Modality } from '@zsi/shared';
 import { useT } from '../i18n';
 import { api } from '../lib/api';
-import { modelOptions, splitModelKey, useStore, type FlowNode, type NodeData } from '../lib/store';
-import { runNode } from '../lib/run';
-import { BaseNode } from './BaseNode';
+import { money } from '../lib/director';
+import { collectInputs, runNode } from '../lib/run';
+import { effectiveModel, modelOptions, useStore, type FlowNode, type NodeData, type NodeKind } from '../lib/store';
 
 type P = NodeProps<FlowNode>;
+
+export const NODE_META: Record<NodeKind, { icon: (size: number) => ReactNode; color: string }> = {
+  prompt: { icon: (s) => <FileText size={s} />, color: '#38bdf8' },
+  upload: { icon: (s) => <ImageIcon size={s} />, color: '#f472b6' },
+  llm: { icon: (s) => <Sparkles size={s} />, color: '#a48bff' },
+  imageGen: { icon: (s) => <ImagePlus size={s} />, color: '#f472b6' },
+  videoGen: { icon: (s) => <Video size={s} />, color: '#fbbf24' },
+  note: { icon: (s) => <StickyNote size={s} />, color: '#fcd34d' },
+};
+export const NODE_ORDER: NodeKind[] = ['prompt', 'upload', 'llm', 'imageGen', 'videoGen', 'note'];
 
 const useUpdate = (id: string) => {
   const updateNode = useStore((s) => s.updateNode);
   return (patch: Partial<NodeData>) => updateNode(id, patch);
 };
 
-function TextArea({ value, onChange, placeholder, rows = 4 }: { value?: string; onChange: (v: string) => void; placeholder?: string; rows?: number }) {
-  return <textarea className="field nodrag nowheel resize-y" rows={rows} value={value ?? ''} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />;
-}
+const isBusy = (d: NodeData) => d.status === 'queued' || d.status === 'running';
 
-function ModelSelect({ modality, data, update }: { modality: Modality; data: NodeData; update: (p: Partial<NodeData>) => void }) {
+// ---------- shell: label above, card, handles, composer below when selected ----------
+
+function Shell({ id, type, data, selected, width, input, output, runnable, composer, children }: {
+  id: string;
+  type: NodeKind;
+  data: NodeData;
+  selected?: boolean;
+  width: number;
+  input?: boolean;
+  output?: boolean;
+  runnable?: boolean;
+  composer?: ReactNode;
+  children: ReactNode;
+}) {
   const t = useT();
-  const providers = useStore((s) => s.providers);
-  const opts = modelOptions(providers, modality);
-  const valid = opts.some((o) => o.key === data.modelKey);
-  const first = opts[0]?.key;
-  // auto-pick the first model so a new node can run immediately
-  useEffect(() => {
-    if (!valid && first) update({ modelKey: first });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [valid, first]);
-  if (!opts.length) return <div className="text-[11px] text-amber-300">{t('field.noModel')}</div>;
+  const update = useUpdate(id);
+  const rf = useReactFlow();
+  const meta = NODE_META[type];
+  const busy = isBusy(data);
   return (
-    <label className="block">
-      <span className="label">{t('field.model')}</span>
-      <select className="field nodrag" value={valid ? data.modelKey : ''} onChange={(e) => update({ modelKey: e.target.value })}>
-        {opts.map((o) => (
-          <option key={o.key} value={o.key}>
-            {o.providerName} · {o.model.label ?? o.model.id}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
+    <div className="relative" style={{ width }}>
+      <div className="mb-1.5 flex h-5 items-center gap-1.5 text-[11px] text-muted">
+        <span style={{ color: meta.color }}>{meta.icon(12)}</span>
+        <input
+          className="nodrag min-w-0 flex-1 truncate bg-transparent outline-none focus:text-white"
+          value={data.label ?? ''}
+          placeholder={t(`node.${type}`)}
+          onChange={(e) => update({ label: e.target.value })}
+        />
+        {busy && (
+          <span className="flex items-center gap-1 text-accent-2">
+            <Loader2 size={11} className="animate-spin" />
+            {data.progress ? `${Math.round(data.progress * 100)}%` : t('status.queued')}
+          </span>
+        )}
+        {data.status === 'failed' && <AlertTriangle size={12} className="text-rose-400" />}
+        {selected && (
+          <span className="nodrag flex items-center gap-0.5">
+            {runnable && !busy && (
+              <button className="rounded p-0.5 hover:bg-line hover:text-white" title={t(data.status === 'done' ? 'rerun' : 'run')} onClick={() => runNode(id, t)}>
+                <RefreshCw size={12} />
+              </button>
+            )}
+            <button className="rounded p-0.5 hover:bg-line hover:text-white" title={t('app.delete')} onClick={() => rf.deleteElements({ nodes: [{ id }] })}>
+              <X size={12} />
+            </button>
+          </span>
+        )}
+      </div>
 
-function useCost(data: NodeData) {
-  const providers = useStore((s) => s.providers);
-  const mk = splitModelKey(data.modelKey);
-  const model = providers.find((p) => p.id === mk?.providerId)?.models.find((m) => m.id === mk?.modelId);
-  return model ? estimateCost(model, { duration: data.duration }) : undefined;
-}
+      <div className={`overflow-hidden rounded-xl border bg-panel shadow-lg shadow-black/40 transition-colors ${selected ? 'border-accent-2' : 'border-line'}`}>{children}</div>
 
-function Advanced({ data, update }: { data: NodeData; update: (p: Partial<NodeData>) => void }) {
-  const t = useT();
-  const [open, setOpen] = useState(!!data.extra);
-  return (
-    <div>
-      <button className="nodrag flex items-center gap-1 text-[11px] text-muted hover:text-white" onClick={() => setOpen(!open)}>
-        {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />} {t('field.advanced')}
-      </button>
-      {open && <TextArea rows={2} value={data.extra} onChange={(extra) => update({ extra })} placeholder='{"resolution": "1080p"}' />}
+      {data.status === 'failed' && data.error && <div className="mt-1.5 rounded-md bg-rose-500/10 p-1.5 text-[11px] leading-snug text-rose-300 break-words">{data.error}</div>}
+
+      {input && <Handle type="target" position={Position.Left} style={{ top: 'calc(50% + 13px)' }} />}
+      {output && <Handle type="source" position={Position.Right} style={{ top: 'calc(50% + 13px)' }} />}
+
+      {selected && composer && (
+        <div className="nodrag nowheel absolute left-1/2 top-full z-10 mt-3 w-[440px] -translate-x-1/2 cursor-default rounded-2xl border border-line bg-panel-2 p-3 shadow-2xl shadow-black/60">
+          {composer}
+        </div>
+      )}
     </div>
   );
 }
 
-const ASPECTS = ['9:16', '1:1', '4:5', '16:9', '3:4', '4:3'];
+// ---------- shared bits ----------
 
-function AspectSelect({ data, update }: { data: NodeData; update: (p: Partial<NodeData>) => void }) {
-  const t = useT();
-  return (
-    <label className="block flex-1">
-      <span className="label">{t('field.aspect')}</span>
-      <select className="field nodrag" value={data.aspectRatio ?? '9:16'} onChange={(e) => update({ aspectRatio: e.target.value })}>
-        {ASPECTS.map((a) => (
-          <option key={a}>{a}</option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function AssetGrid({ ids }: { ids?: string[] }) {
+function Media({ ids, single }: { ids?: string[]; single?: boolean }) {
   const assets = useStore((s) => s.assets);
   const setPreview = useStore((s) => s.setPreview);
   const list = (ids ?? []).map((id) => assets[id]).filter(Boolean);
   if (!list.length) return null;
+  const shown = single ? list.slice(0, 1) : list;
   return (
-    <div className={`grid gap-1.5 ${list.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-      {list.map((a) =>
+    <div className={`grid gap-px bg-line ${shown.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+      {shown.map((a) =>
         a.type === 'video' ? (
-          <video key={a.id} src={a.url} className="nodrag max-h-72 w-full rounded-lg bg-black" controls loop playsInline />
+          <video key={a.id} src={a.url} className="nodrag block w-full bg-black" controls loop playsInline preload="metadata" />
         ) : (
-          <img key={a.id} src={a.url} className="max-h-72 w-full cursor-zoom-in rounded-lg bg-black object-contain" onDoubleClick={() => setPreview(a)} draggable={false} />
+          <img key={a.id} src={a.url} className="block w-full cursor-zoom-in bg-black object-cover" onDoubleClick={() => setPreview(a)} draggable={false} />
         ),
       )}
     </div>
   );
 }
 
-function useRunner(id: string, data: NodeData) {
-  const t = useT();
-  return {
-    onRun: () => runNode(id, t),
-    onCancel: () => data.jobId && api.cancelJob(data.jobId),
-  };
+function ratioCss(r?: string) {
+  const [a, b] = (r ?? '9:16').split(':').map(Number);
+  return a && b ? `${a} / ${b}` : '9 / 16';
 }
 
-// ---------- node components ----------
+function ModelPicker({ modality, data, update }: { modality: Modality; data: NodeData; update: (p: Partial<NodeData>) => void }) {
+  const t = useT();
+  const providers = useStore((s) => s.providers);
+  const opts = modelOptions(providers, modality);
+  const cur = effectiveModel(providers, modality, data.modelKey);
+  if (!opts.length) return <span className="text-[11px] text-amber-300">{t('field.noModel')}</span>;
+  return (
+    <select className="chip max-w-[190px] truncate" value={cur?.key} onChange={(e) => update({ modelKey: e.target.value })}>
+      {opts.map((o) => (
+        <option key={o.key} value={o.key}>
+          {o.model.label ?? o.model.id} · {o.providerName}
+        </option>
+      ))}
+    </select>
+  );
+}
 
-function PromptNode({ id, data, selected }: P) {
+function SendButton({ id, data }: { id: string; data: NodeData }) {
+  const t = useT();
+  return isBusy(data) ? (
+    <button className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-line text-white hover:bg-rose-500/40" title={t('cancel')} onClick={() => data.jobId && api.cancelJob(data.jobId)}>
+      <Square size={12} />
+    </button>
+  ) : (
+    <button className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-white hover:bg-accent-2" title={t('run')} onClick={() => runNode(id, t)}>
+      <ArrowUp size={16} />
+    </button>
+  );
+}
+
+function useCost(modality: Modality, data: NodeData) {
+  const t = useT();
+  const providers = useStore((s) => s.providers);
+  const m = effectiveModel(providers, modality, data.modelKey);
+  return m ? money(estimateCost(m.model, { duration: data.duration }), t) : '';
+}
+
+/** Thumbnails of connected reference images, plus a count of connected text. */
+function Inputs({ id }: { id: string }) {
+  const t = useT();
+  useStore((s) => s.edges);
+  useStore((s) => s.nodes);
+  const assets = useStore((s) => s.assets);
+  const { texts, imageAssetIds } = collectInputs(id);
+  if (!texts.length && !imageAssetIds.length) return null;
+  return (
+    <div className="mb-2 flex flex-wrap items-center gap-1.5">
+      {imageAssetIds.map((aid, i) => (
+        <span key={aid} className="relative h-10 w-10 overflow-hidden rounded-lg border border-line" title={`${t('field.refs')} ${i + 1}`}>
+          <img src={assets[aid]?.url} className="h-full w-full object-cover" draggable={false} />
+          <span className="absolute left-0 top-0 rounded-br bg-black/70 px-1 text-[9px]">{i + 1}</span>
+        </span>
+      ))}
+      {texts.length > 0 && (
+        <span className="chip pointer-events-none">
+          <Type size={11} /> {texts.length} {t('field.textInputs')}
+        </span>
+      )}
+    </div>
+  );
+}
+
+const ASPECTS = ['9:16', '1:1', '4:5', '16:9', '3:4', '4:3'];
+const DURATIONS = [3, 5, 8, 10, 15];
+
+// ---------- nodes ----------
+
+function TextNode({ id, data, selected, type }: P) {
   const t = useT();
   const update = useUpdate(id);
+  const note = type === 'note';
   return (
-    <BaseNode title={t('node.prompt')} icon={<FileText size={12} />} accent="#38bdf8" selected={selected} output="text">
-      <TextArea rows={5} value={data.text} onChange={(text) => update({ text })} placeholder="A white sneaker on wet marble, soft morning light…" />
-    </BaseNode>
+    <Shell id={id} type={type as NodeKind} data={data} selected={selected} width={260} output={!note}>
+      <textarea
+        className={`nodrag nowheel block h-40 w-full resize-y bg-transparent p-3 text-[12px] leading-relaxed outline-none ${note ? 'bg-amber-200/10' : ''}`}
+        value={data.text ?? ''}
+        placeholder={t('text.placeholder')}
+        onChange={(e) => update({ text: e.target.value })}
+      />
+    </Shell>
   );
 }
 
@@ -126,6 +209,7 @@ function UploadNode({ id, data, selected }: P) {
   const addAssets = useStore((s) => s.addAssets);
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const has = !!data.assetIds?.length;
 
   const upload = async (files: FileList | null) => {
     if (!files?.length || !project) return;
@@ -140,10 +224,10 @@ function UploadNode({ id, data, selected }: P) {
   };
 
   return (
-    <BaseNode title={t('node.upload')} icon={<Upload size={12} />} accent="#f472b6" selected={selected} output="image" width={240}>
-      <AssetGrid ids={data.assetIds} />
+    <Shell id={id} type="upload" data={data} selected={selected} width={240} output>
+      <Media ids={data.assetIds} />
       <button
-        className="nodrag w-full rounded-lg border border-dashed border-line p-3 text-[11px] text-muted hover:border-accent hover:text-white"
+        className={`nodrag flex w-full flex-col items-center justify-center gap-2 text-[11px] text-muted hover:text-white ${has ? 'border-t border-line py-1.5' : 'aspect-square'}`}
         onClick={() => input.current?.click()}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
@@ -152,111 +236,122 @@ function UploadNode({ id, data, selected }: P) {
           upload(e.dataTransfer.files);
         }}
       >
-        {busy ? '…' : t('upload.drop')}
+        {busy ? <Loader2 size={16} className="animate-spin" /> : !has && <ImagePlus size={22} />}
+        {has ? '+' : t('upload.drop')}
       </button>
       <input ref={input} type="file" accept="image/*,video/*" multiple hidden onChange={(e) => upload(e.target.files)} />
-    </BaseNode>
+    </Shell>
   );
 }
 
 function LlmNode({ id, data, selected }: P) {
   const t = useT();
   const update = useUpdate(id);
-  const cost = useCost(data);
+  const cost = useCost('text', data);
   return (
-    <BaseNode
-      title={t('node.llm')}
-      icon={<Sparkles size={12} />}
-      accent="#a48bff"
+    <Shell
+      id={id}
+      type="llm"
+      data={data}
       selected={selected}
-      inputs={['text', 'image']}
-      output="text"
-      status={data.status}
-      progress={data.progress}
-      error={data.error}
-      cost={cost}
-      width={300}
-      {...useRunner(id, data)}
+      width={280}
+      input
+      output
+      runnable
+      composer={
+        <>
+          <Inputs id={id} />
+          <textarea className="block h-20 w-full resize-none bg-transparent text-[12px] leading-relaxed outline-none" value={data.text ?? ''} placeholder={t('field.instructions')} onChange={(e) => update({ text: e.target.value })} />
+          <input className="mb-2 w-full border-t border-line bg-transparent pt-2 text-[11px] text-muted outline-none focus:text-white" value={data.system ?? ''} placeholder={t('field.system')} onChange={(e) => update({ system: e.target.value })} />
+          <div className="flex items-center gap-1.5">
+            <ModelPicker modality="text" data={data} update={update} />
+            <span className="ml-auto text-[11px] text-muted">{cost}</span>
+            <SendButton id={id} data={data} />
+          </div>
+        </>
+      }
     >
-      <ModelSelect modality="text" data={data} update={update} />
-      <label className="block">
-        <span className="label">{t('field.instructions')}</span>
-        <TextArea rows={3} value={data.text} onChange={(text) => update({ text })} placeholder="Write 3 TikTok hooks for this product…" />
-      </label>
-      <label className="block">
-        <span className="label">{t('field.system')}</span>
-        <input className="field nodrag" value={data.system ?? ''} onChange={(e) => update({ system: e.target.value })} placeholder="You are a direct-response copywriter." />
-      </label>
-      {data.outputText && (
-        <TextArea rows={6} value={data.outputText} onChange={(outputText) => update({ outputText })} />
+      {data.outputText ? (
+        <textarea className="nodrag nowheel block h-44 w-full resize-y bg-transparent p-3 text-[12px] leading-relaxed outline-none" value={data.outputText} onChange={(e) => update({ outputText: e.target.value })} />
+      ) : (
+        <div className="flex h-32 flex-col items-center justify-center gap-2 p-4 text-center text-[11px] text-muted">
+          {isBusy(data) ? <Loader2 size={20} className="animate-spin text-accent-2" /> : <Sparkles size={20} />}
+          <span className="line-clamp-3">{data.text}</span>
+        </div>
       )}
-    </BaseNode>
+    </Shell>
   );
 }
 
 function GenNode({ id, data, selected, modality }: P & { modality: 'image' | 'video' }) {
   const t = useT();
   const update = useUpdate(id);
-  const cost = useCost(data);
+  const cost = useCost(modality, data);
+  const [adv, setAdv] = useState(!!data.extra);
   const isVideo = modality === 'video';
+  const has = !!data.assetIds?.length;
   return (
-    <BaseNode
-      title={t(isVideo ? 'node.videoGen' : 'node.imageGen')}
-      icon={isVideo ? <Video size={12} /> : <ImageIcon size={12} />}
-      accent={isVideo ? '#fbbf24' : '#f472b6'}
+    <Shell
+      id={id}
+      type={isVideo ? 'videoGen' : 'imageGen'}
+      data={data}
       selected={selected}
-      inputs={['text', 'image']}
-      output={modality}
-      status={data.status}
-      progress={data.progress}
-      error={data.error}
-      cost={cost}
-      width={300}
-      {...useRunner(id, data)}
+      width={240}
+      input
+      output
+      runnable
+      composer={
+        <>
+          <Inputs id={id} />
+          <textarea className="block h-24 w-full resize-none bg-transparent text-[12px] leading-relaxed outline-none" value={data.text ?? ''} placeholder={t('field.prompt')} onChange={(e) => update({ text: e.target.value })} />
+          {adv && <textarea className="field mt-1 h-14 font-mono text-[11px]" value={data.extra ?? ''} placeholder={`${t('field.advanced')}  {"resolution": "1080p"}`} onChange={(e) => update({ extra: e.target.value })} />}
+          <div className="mt-2 flex items-center gap-1.5">
+            <ModelPicker modality={modality} data={data} update={update} />
+            <select className="chip" value={data.aspectRatio ?? '9:16'} onChange={(e) => update({ aspectRatio: e.target.value })}>
+              {ASPECTS.map((a) => (
+                <option key={a}>{a}</option>
+              ))}
+            </select>
+            {isVideo && (
+              <select className="chip" value={data.duration ?? 5} onChange={(e) => update({ duration: Number(e.target.value) })}>
+                {DURATIONS.map((d) => (
+                  <option key={d} value={d}>
+                    {d}s
+                  </option>
+                ))}
+              </select>
+            )}
+            <button className={`chip ${adv ? 'text-accent-2' : ''}`} title={t('field.advanced')} onClick={() => setAdv(!adv)}>
+              <Braces size={11} />
+            </button>
+            <span className="ml-auto text-[11px] text-muted">{cost}</span>
+            <SendButton id={id} data={data} />
+          </div>
+        </>
+      }
     >
-      <ModelSelect modality={modality} data={data} update={update} />
-      <label className="block">
-        <span className="label">{t('field.prompt')}</span>
-        <TextArea rows={3} value={data.text} onChange={(text) => update({ text })} placeholder={isVideo ? 'Slow push-in, hand picks up the product…' : 'Studio product shot, soft shadow…'} />
-      </label>
-      <div className="flex gap-2">
-        <AspectSelect data={data} update={update} />
-        {isVideo && (
-          <label className="block w-20">
-            <span className="label">{t('field.duration')}</span>
-            <input type="number" min={1} max={30} className="field nodrag" value={data.duration ?? 5} onChange={(e) => update({ duration: Number(e.target.value) })} />
-          </label>
-        )}
-      </div>
-      <Advanced data={data} update={update} />
-      <AssetGrid ids={data.assetIds} />
-    </BaseNode>
-  );
-}
-
-function NoteNode({ id, data, selected }: P) {
-  const update = useUpdate(id);
-  return (
-    <div className={`w-56 rounded-lg border p-2 shadow-lg ${selected ? 'border-amber-300' : 'border-amber-400/30'} bg-amber-200/10`}>
-      <TextArea rows={4} value={data.text} onChange={(text) => update({ text })} placeholder="Note…" />
-    </div>
+      {has ? (
+        <Media ids={data.assetIds} single={isVideo} />
+      ) : (
+        <div className="flex flex-col items-center justify-center gap-2 p-4 text-center text-[11px] text-muted" style={{ aspectRatio: ratioCss(data.aspectRatio) }}>
+          {isBusy(data) ? <Loader2 size={22} className="animate-spin text-accent-2" /> : NODE_META[isVideo ? 'videoGen' : 'imageGen'].icon(24)}
+          <span className="line-clamp-4">{data.text}</span>
+        </div>
+      )}
+      {has && isBusy(data) && (
+        <div className="absolute inset-x-0 bottom-0 top-[26px] flex items-center justify-center rounded-xl bg-black/60">
+          <Loader2 size={22} className="animate-spin text-accent-2" />
+        </div>
+      )}
+    </Shell>
   );
 }
 
 export const nodeTypes: NodeTypes = {
-  prompt: PromptNode,
+  prompt: TextNode,
+  note: TextNode,
   upload: UploadNode,
   llm: LlmNode,
   imageGen: (p: P) => <GenNode {...p} modality="image" />,
   videoGen: (p: P) => <GenNode {...p} modality="video" />,
-  note: NoteNode,
 } as NodeTypes;
-
-export const PALETTE: { type: FlowNode['type'] & string; icon: ReactNode; color: string }[] = [
-  { type: 'prompt', icon: <FileText size={14} />, color: '#38bdf8' },
-  { type: 'upload', icon: <Upload size={14} />, color: '#f472b6' },
-  { type: 'llm', icon: <Sparkles size={14} />, color: '#a48bff' },
-  { type: 'imageGen', icon: <ImageIcon size={14} />, color: '#f472b6' },
-  { type: 'videoGen', icon: <Video size={14} />, color: '#fbbf24' },
-  { type: 'note', icon: <StickyNote size={14} />, color: '#fcd34d' },
-];

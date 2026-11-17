@@ -157,10 +157,12 @@ export interface ProjectSummary {
   name: string;
   updatedAt: string;
   totalCost: number;
+  coverUrl?: string;
 }
 
 export interface Project extends ProjectSummary {
   graph: { nodes: unknown[]; edges: unknown[] };
+  brief: Brief;
 }
 
 export function estimateCost(model: ModelDef | undefined, params?: JobParams): number {
@@ -168,3 +170,82 @@ export function estimateCost(model: ModelDef | undefined, params?: JobParams): n
   if (model.costPerSecond != null) return model.costPerSecond * (params?.duration ?? 5);
   return model.costPerRun ?? 0;
 }
+
+// ---------- brief, plans, director ----------
+
+/** Product + brand facts every template and the Director reuse. */
+export interface Brief {
+  productUrl?: string;
+  productName?: string;
+  description?: string;
+  price?: string;
+  benefits?: string;
+  audience?: string;
+  tone?: string;
+  brandName?: string;
+  brandColors?: string;
+  imageAssetIds?: string[];
+}
+
+export type PlanNodeType = 'prompt' | 'upload' | 'llm' | 'imageGen' | 'videoGen';
+
+export interface PlanNode {
+  ref: string; // id used by plan edges
+  type: PlanNodeType;
+  label: string;
+  text?: string;
+  system?: string;
+  aspectRatio?: string;
+  duration?: number;
+  assetIds?: string[];
+}
+
+/** A set of nodes and connections to add to the canvas. Edges may also point at existing node ids. */
+export interface Plan {
+  title: string;
+  summary?: string;
+  nodes: PlanNode[];
+  edges: { from: string; to: string }[];
+}
+
+export interface CanvasNodeSummary {
+  id: string;
+  type: string;
+  label?: string;
+  text?: string;
+  status?: string;
+}
+
+export interface DirectorRequest {
+  projectId: string;
+  providerId: string;
+  model: string;
+  message: string;
+  history: { role: 'user' | 'assistant'; content: string }[];
+  canvas: CanvasNodeSummary[];
+}
+
+export interface DirectorResponse {
+  reply: string;
+  plan?: Plan;
+}
+
+export function briefToText(b: Brief | undefined): string {
+  if (!b) return '';
+  const rows: [string, string | undefined][] = [
+    ['Product', b.productName],
+    ['Brand', b.brandName],
+    ['Price', b.price],
+    ['Description', b.description],
+    ['Key benefits', b.benefits],
+    ['Target audience', b.audience],
+    ['Tone of voice', b.tone],
+    ['Brand colors', b.brandColors],
+  ];
+  return rows
+    .filter(([, v]) => v?.trim())
+    .map(([k, v]) => `${k}: ${v!.trim()}`)
+    .join('\n');
+}
+
+export * from './templates.js';

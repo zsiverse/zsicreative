@@ -33,3 +33,20 @@ select.field { padding: 5px 6px; }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: #2a2a38; border-radius: 8px; }
+
+/* Toonflow-style chrome: floating pills over a full-bleed canvas */
+.float { background: color-mix(in srgb, var(--color-panel) 92%, transparent); border: 1px solid var(--color-line); border-radius: 14px; box-shadow: 0 8px 30px rgba(0,0,0,.45); backdrop-filter: blur(10px); }
+.icon-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; min-width: 32px; padding: 0 8px; border-radius: 9px; color: #c9c9d6; cursor: pointer; }
+.icon-btn:hover { background: var(--color-line); color: white; }
+.icon-btn.on { color: var(--color-accent-2); background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
+.chip { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--color-line); background: var(--color-panel); color: #c9c9d6; font-size: 11px; outline: none; cursor: pointer; }
+.chip:hover { border-color: #3a3a4e; color: white; }
+.menu-item { display: flex; width: 100%; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; text-align: left; cursor: pointer; }
+.menu-item:hover { background: var(--color-line); }
+
+.react-flow__handle { width: 12px; height: 12px; background: var(--color-panel); border: 1.5px solid #6b6b80; }
+.react-flow__handle:hover, .react-flow__handle.connectingto { border-color: var(--color-accent-2); background: var(--color-accent); }
+.react-flow__handle-left { left: -14px; }
+.react-flow__handle-right { right: -14px; }
+.react-flow__node { cursor: grab; }
+.react-flow__node.selected { z-index: 1000 !important; }

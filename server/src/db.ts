@@ -65,5 +65,9 @@ CREATE TABLE IF NOT EXISTS assets (
 );
 `);
 
+// Columns added after the first release.
+const projectCols = (db.prepare('PRAGMA table_info(projects)').all() as { name: string }[]).map((c) => c.name);
+if (!projectCols.includes('brief')) db.exec(`ALTER TABLE projects ADD COLUMN brief TEXT NOT NULL DEFAULT '{}'`);
+
 export const now = () => new Date().toISOString();
 export const newId = (prefix: string) => `${prefix}_${crypto.randomUUID().replace(/-/g, '').slice(0, 16)}`;

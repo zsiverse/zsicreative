@@ -5,11 +5,13 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { Readable } from 'node:stream';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { JobRequest, ProviderInput } from '@zsi/shared';
+import type { DirectorRequest, JobRequest, ProviderInput } from '@zsi/shared';
 import { PROVIDER_KINDS } from '@zsi/shared';
 import { WORKSPACE_DIR } from './db.js';
 import * as store from './store.js';
 import { ADAPTERS, cancelJob, recoverInterruptedJobs, submitJob } from './jobs.js';
+import { importProduct } from './importProduct.js';
+import { direct } from './director.js';
 
 const PORT = Number(process.env.PORT ?? 8787);
 const HOST = process.env.HOST ?? '127.0.0.1'; // local only by default
@@ -74,6 +76,15 @@ app.post('/api/jobs/:id/cancel', (c) => {
   cancelJob(c.req.param('id'));
   return c.json({ ok: true });
 });
+
+// ---------- marketing: product import + director ----------
+app.post('/api/projects/:id/import-product', async (c) => {
+  const projectId = c.req.param('id');
+  if (!store.getProject(projectId)) return c.json({ error: 'Project not found' }, 404);
+  const { url } = await c.req.json<{ url: string }>();
+  return c.json(await importProduct(projectId, url ?? ''));
+});
+app.post('/api/director', async (c) => c.json(await direct(await c.req.json<DirectorRequest>())));
 
 // Live job/asset updates for the canvas.
 app.get('/api/events', (c) =>

@@ -21,14 +21,19 @@ export function listProjects(): ProjectSummary[] {
          FROM projects p ORDER BY p.updated_at DESC`,
       )
       .all() as any[]
-  ).map((r) => ({ id: r.id, name: r.name, updatedAt: r.updated_at, totalCost: r.total }));
+  ).map((r) => ({ id: r.id, name: r.name, updatedAt: r.updated_at, totalCost: r.total, coverUrl: coverUrl(r.id) }));
+}
+
+function coverUrl(projectId: string): string | undefined {
+  const a = db.prepare(`SELECT filename FROM assets WHERE project_id = ? AND type = 'image' ORDER BY created_at DESC LIMIT 1`).get(projectId) as any;
+  return a ? `/files/${projectId}/${a.filename}` : undefined;
 }
 
 export function getProject(id: string): Project | undefined {
   const r = db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as any;
   if (!r) return;
   const total = (db.prepare(`SELECT COALESCE(SUM(cost_estimate),0) AS t FROM jobs WHERE project_id = ? AND status = 'done'`).get(id) as any).t;
-  return { id: r.id, name: r.name, updatedAt: r.updated_at, totalCost: total, graph: JSON.parse(r.graph) };
+  return { id: r.id, name: r.name, updatedAt: r.updated_at, totalCost: total, coverUrl: coverUrl(id), graph: JSON.parse(r.graph), brief: JSON.parse(r.brief ?? '{}') };
 }
 
 export function createProject(name: string): Project {
@@ -38,11 +43,12 @@ export function createProject(name: string): Project {
   return getProject(id)!;
 }
 
-export function updateProject(id: string, patch: { name?: string; graph?: unknown }) {
+export function updateProject(id: string, patch: { name?: string; graph?: unknown; brief?: unknown }) {
   const cur = db.prepare('SELECT id FROM projects WHERE id = ?').get(id);
   if (!cur) return;
   if (patch.name != null) db.prepare('UPDATE projects SET name = ? WHERE id = ?').run(patch.name, id);
   if (patch.graph != null) db.prepare('UPDATE projects SET graph = ? WHERE id = ?').run(JSON.stringify(patch.graph), id);
+  if (patch.brief != null) db.prepare('UPDATE projects SET brief = ? WHERE id = ?').run(JSON.stringify(patch.brief), id);
   db.prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(now(), id);
   return getProject(id);
 }
